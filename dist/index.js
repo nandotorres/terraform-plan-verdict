@@ -47501,9 +47501,11 @@ async function run() {
     if (boolInput("summary")) {
         await core.summary.addRaw(markdown).write();
     }
-    const prCtx = getPrContext();
     const wantsComment = boolInput("comment");
     const wantsLabels = boolInput("labels");
+    // Only resolve PR context when we actually need it (avoids requiring
+    // GITHUB_REPOSITORY for summary-only / local runs).
+    const prCtx = wantsComment || wantsLabels ? getPrContext() : null;
     if ((wantsComment || wantsLabels) && prCtx) {
         const token = core.getInput("github-token");
         const octokit = getOctokit(token);

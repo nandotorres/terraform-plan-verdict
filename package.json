@@ -11,7 +11,8 @@
     "build": "ncc build src/main.ts -o dist --source-map --license licenses.txt",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "score": "bash scripts/score.sh"
   },
   "dependencies": {
     "@actions/core": "^1.11.1",
