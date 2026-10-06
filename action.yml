@@ -1,5 +1,5 @@
 name: "Terraform Plan Verdict"
-description: "Score a Terraform plan and surface a risk verdict in the job summary, as a PR comment, and as labels. Free deterministic rules by default; optional jev/TypeSafe or any OpenAI-compatible model."
+description: "Score a Terraform plan and post a LOW/MEDIUM/HIGH/CRITICAL risk verdict to your PRs. Free rules, optional AI."
 author: "nandotorres"
 branding:
   icon: "shield"
