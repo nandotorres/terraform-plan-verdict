@@ -20,4 +20,5 @@ terraform apply -auto-approve -input=false -no-color -var phase=base >/dev/null
 terraform plan -input=false -no-color -out=tfplan -var phase=change >/dev/null
 terraform show -json tfplan > plan.json
 
-echo "wrote ${dir%/}/plan.json"
+echo "wrote $(pwd)/plan.json"
+echo "score it:  npm run score $(pwd)/plan.json"

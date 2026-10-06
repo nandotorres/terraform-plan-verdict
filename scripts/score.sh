@@ -11,6 +11,13 @@ plan="${1:?usage: score.sh <plan.json> [provider]}"
 provider="${2:-rules}"
 here="$(cd "$(dirname "$0")/.." && pwd)"
 
+if [ ! -f "$plan" ]; then
+  echo "error: plan file not found: '$plan' (cwd: $PWD)" >&2
+  exit 1
+fi
+# Absolutize so the action's working directory doesn't matter.
+plan="$(cd "$(dirname "$plan")" && pwd)/$(basename "$plan")"
+
 out="$(mktemp)"
 env "INPUT_PLAN-JSON=$plan" \
     "INPUT_PROVIDER=$provider" \
