@@ -150,7 +150,7 @@ jobs:
 
 | Input | Default | Description |
 | --- | --- | --- |
-| `plan-json` | _required_ | Path to `terraform show -json` output. |
+| `plan-json` | _required_ | Path to the plan JSON — accepts both `terraform show -json` (single object) and `terraform plan -json` (NDJSON). |
 | `provider` | `rules` | `rules`, `systemone`, or `openai`. |
 | `api-key` | — | Key for the provider (not needed for `rules`). Falls back to `TYPESAFE_API_KEY` / `OPENAI_API_KEY`. |
 | `model` | provider default | Model name (e.g. `jev-latest`, `gpt-4o-mini`, `llama3.1`). |

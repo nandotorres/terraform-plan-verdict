@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { judgePlan, verdictAtOrAbove, type ProviderName, type Verdict } from "./judge/index.js";
-import { summarizePlan, type PlanJson } from "./plan.js";
+import { loadPlan, summarizePlan } from "./plan.js";
 import { renderMarkdown, riskLabels } from "./render.js";
 import { applyLabels, getPrContext, upsertComment } from "./github.js";
 
@@ -26,11 +26,11 @@ async function run(): Promise<void> {
     return;
   }
 
-  let plan: PlanJson;
+  let plan;
   try {
-    plan = JSON.parse(planRaw) as PlanJson;
+    plan = loadPlan(planRaw);
   } catch (e) {
-    core.setFailed(`plan-json is not valid JSON: ${(e as Error).message}`);
+    core.setFailed(`Could not parse plan input: ${(e as Error).message}`);
     return;
   }
 

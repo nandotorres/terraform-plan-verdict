@@ -7,7 +7,7 @@ branding:
 
 inputs:
   plan-json:
-    description: "Path to the Terraform plan in JSON form (output of `terraform show -json tfplan`)."
+    description: "Path to the plan JSON: either `terraform show -json tfplan` (single object) or `terraform plan -json` (NDJSON stream)."
     required: true
   provider:
     description: "Judgment provider: 'rules' (free, offline, default), 'systemone' (jev / TypeSafe-compatible), or 'openai' (any OpenAI-compatible endpoint)."

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { classifyActions, summarizePlan, type PlanJson } from "../src/plan.js";
+import { classifyActions, loadPlan, summarizePlan, type PlanJson } from "../src/plan.js";
 
 const plan = JSON.parse(
   readFileSync(fileURLToPath(new URL("./fixtures/plan.json", import.meta.url)), "utf8"),
@@ -16,6 +16,35 @@ describe("classifyActions", () => {
     expect(classifyActions(["create"])).toBe("create");
     expect(classifyActions(["update"])).toBe("update");
     expect(classifyActions(["no-op"])).toBe("noop");
+  });
+});
+
+describe("loadPlan", () => {
+  const showJson = readFileSync(
+    fileURLToPath(new URL("./fixtures/plan.json", import.meta.url)),
+    "utf8",
+  );
+  const ndjson = readFileSync(
+    fileURLToPath(new URL("./fixtures/plan.ndjson", import.meta.url)),
+    "utf8",
+  );
+
+  it("parses terraform show -json (single object)", () => {
+    const p = loadPlan(showJson);
+    expect(p.resource_changes?.length).toBeGreaterThan(0);
+  });
+
+  it("parses terraform plan -json (NDJSON stream)", () => {
+    const p = loadPlan(ndjson);
+    const s = summarizePlan(p, { maxResources: 0 });
+    // the 'high' scenario: 3 replaces + 13 deletes
+    expect(s.counts.replace).toBe(3);
+    expect(s.counts.delete).toBe(13);
+    expect(s.hasDestructiveChanges).toBe(true);
+  });
+
+  it("throws on unparseable input", () => {
+    expect(() => loadPlan("not json at all")).toThrow();
   });
 });
 

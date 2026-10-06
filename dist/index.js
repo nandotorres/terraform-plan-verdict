@@ -38525,6 +38525,79 @@ function judgePlan(provider, summary, opts) {
 }
 
 ;// CONCATENATED MODULE: ./src/plan.ts
+/** Map a `terraform plan -json` planned_change action to the show-json actions array. */
+function actionToList(action) {
+    switch (action) {
+        case "create":
+            return ["create"];
+        case "update":
+            return ["update"];
+        case "delete":
+            return ["delete"];
+        case "read":
+            return ["read"];
+        case "noop":
+        case "no-op":
+            return ["no-op"];
+        case "replace":
+        case "create-then-delete":
+        case "delete-then-create":
+            return ["delete", "create"];
+        default:
+            return [action];
+    }
+}
+/**
+ * Accept either `terraform show -json` (a single JSON object with
+ * `resource_changes`) or `terraform plan -json` (an NDJSON log stream).
+ */
+function loadPlan(raw) {
+    const text = raw.trim();
+    if (!text)
+        throw new Error("plan input is empty");
+    // terraform show -json: one JSON object with resource_changes.
+    try {
+        const obj = JSON.parse(text);
+        if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+            if (Array.isArray(obj.resource_changes))
+                return obj;
+            if ("format_version" in obj || "terraform_version" in obj)
+                return obj;
+        }
+    }
+    catch {
+        // Not a single JSON document; try NDJSON below.
+    }
+    // terraform plan -json: NDJSON, one message per line.
+    const changes = [];
+    for (const line of text.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed)
+            continue;
+        let msg;
+        try {
+            msg = JSON.parse(trimmed);
+        }
+        catch {
+            continue;
+        }
+        // A full plan object embedded in the stream wins outright.
+        if (Array.isArray(msg.resource_changes))
+            return msg;
+        if (msg.type === "planned_change" && msg.change && typeof msg.change === "object") {
+            const change = msg.change;
+            const resource = change.resource ?? {};
+            changes.push({
+                address: String(resource.addr ?? ""),
+                type: String(resource.resource_type ?? ""),
+                change: { actions: actionToList(String(change.action ?? "noop")) },
+            });
+        }
+    }
+    if (changes.length > 0)
+        return { resource_changes: changes };
+    throw new Error("Could not parse input as `terraform show -json` or `terraform plan -json` output.");
+}
 // Resources that hold data; destroying or replacing them can cause data loss.
 const STATEFUL_TYPES = new Set([
     "aws_db_instance",
@@ -38785,10 +38858,10 @@ async function run() {
     }
     let plan;
     try {
-        plan = JSON.parse(planRaw);
+        plan = loadPlan(planRaw);
     }
     catch (e) {
-        core.setFailed(`plan-json is not valid JSON: ${e.message}`);
+        core.setFailed(`Could not parse plan input: ${e.message}`);
         return;
     }
     const summary = summarizePlan(plan, { maxResources: Number.isFinite(maxResources) ? maxResources : 200 });

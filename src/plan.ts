@@ -15,6 +15,78 @@ export interface PlanJson {
   resource_changes?: ResourceChangeJson[];
 }
 
+/** Map a `terraform plan -json` planned_change action to the show-json actions array. */
+function actionToList(action: string): string[] {
+  switch (action) {
+    case "create":
+      return ["create"];
+    case "update":
+      return ["update"];
+    case "delete":
+      return ["delete"];
+    case "read":
+      return ["read"];
+    case "noop":
+    case "no-op":
+      return ["no-op"];
+    case "replace":
+    case "create-then-delete":
+    case "delete-then-create":
+      return ["delete", "create"];
+    default:
+      return [action];
+  }
+}
+
+/**
+ * Accept either `terraform show -json` (a single JSON object with
+ * `resource_changes`) or `terraform plan -json` (an NDJSON log stream).
+ */
+export function loadPlan(raw: string): PlanJson {
+  const text = raw.trim();
+  if (!text) throw new Error("plan input is empty");
+
+  // terraform show -json: one JSON object with resource_changes.
+  try {
+    const obj = JSON.parse(text) as Record<string, unknown>;
+    if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+      if (Array.isArray(obj.resource_changes)) return obj as PlanJson;
+      if ("format_version" in obj || "terraform_version" in obj) return obj as PlanJson;
+    }
+  } catch {
+    // Not a single JSON document; try NDJSON below.
+  }
+
+  // terraform plan -json: NDJSON, one message per line.
+  const changes: ResourceChangeJson[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let msg: Record<string, unknown>;
+    try {
+      msg = JSON.parse(trimmed) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    // A full plan object embedded in the stream wins outright.
+    if (Array.isArray(msg.resource_changes)) return msg as PlanJson;
+    if (msg.type === "planned_change" && msg.change && typeof msg.change === "object") {
+      const change = msg.change as Record<string, unknown>;
+      const resource = (change.resource as Record<string, unknown> | undefined) ?? {};
+      changes.push({
+        address: String(resource.addr ?? ""),
+        type: String(resource.resource_type ?? ""),
+        change: { actions: actionToList(String(change.action ?? "noop")) },
+      });
+    }
+  }
+  if (changes.length > 0) return { resource_changes: changes };
+
+  throw new Error(
+    "Could not parse input as `terraform show -json` or `terraform plan -json` output.",
+  );
+}
+
 export interface Counts {
   create: number;
   update: number;
