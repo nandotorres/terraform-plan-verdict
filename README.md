@@ -34,7 +34,7 @@ jobs:
       - run: terraform plan -out=tfplan
       - run: terraform show -json tfplan > plan.json
 
-      - uses: nandotorres/terraform-plan-veredict@v1
+      - uses: nandotorres/terraform-plan-verdict@v1
         with:
           plan-json: plan.json
           typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
@@ -45,7 +45,7 @@ jobs:
 ### Comment, label, and block risky merges
 
 ```yaml
-- uses: nandotorres/terraform-plan-veredict@v1
+- uses: nandotorres/terraform-plan-verdict@v1
   with:
     plan-json: plan.json
     typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}
@@ -57,7 +57,7 @@ jobs:
 ### Use the verdict in later steps
 
 ```yaml
-- uses: nandotorres/terraform-plan-veredict@v1
+- uses: nandotorres/terraform-plan-verdict@v1
   id: verdict
   with:
     plan-json: plan.json
@@ -73,7 +73,7 @@ jobs:
 ### Summary only (no PR writes)
 
 ```yaml
-- uses: nandotorres/terraform-plan-veredict@v1
+- uses: nandotorres/terraform-plan-verdict@v1
   with:
     plan-json: plan.json
     typesafe-api-key: ${{ secrets.TYPESAFE_API_KEY }}

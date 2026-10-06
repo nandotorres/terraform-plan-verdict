@@ -58,7 +58,7 @@ devops, platform-engineering, gitops, change-management
 ## Pre-publish checklist
 
 - [ ] `npm run build` committed; CI green on `main`.
-- [ ] `README.md` examples use `nandotorres/terraform-plan-veredict@v1`.
+- [ ] `README.md` examples use `nandotorres/terraform-plan-verdict@v1`.
 - [ ] `action.yml` name, description, and branding are final.
 - [ ] `TYPESAFE_API_KEY` usage documented for consumers.
 - [ ] `v1.0.0` tag pushed and release published.

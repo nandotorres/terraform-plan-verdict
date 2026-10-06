@@ -8,7 +8,7 @@
 #
 set -euo pipefail
 
-REPO="${REPO:-nandotorres/terraform-plan-veredict}"
+REPO="${REPO:-nandotorres/terraform-plan-verdict}"
 BRANCH="${BRANCH:-main}"
 
 echo "Hardening ${REPO} (${BRANCH})..."
