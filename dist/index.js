@@ -46185,11 +46185,24 @@ function maxVerdict(a, b) {
 }
 /** The state payload sent to AI providers. Attribute values are never included. */
 function toState(summary) {
+    // Deterministic facts computed by the rules layer, so the model judges on
+    // grounded signals instead of guessing (e.g. whether a DB is being replaced).
+    const statefulDestroyCount = summary.resources.filter((r) => r.stateful && (r.action === "delete" || r.action === "replace")).length;
+    const securityFlagCounts = {};
+    for (const r of summary.resources) {
+        for (const flag of r.securityFlags) {
+            securityFlagCounts[flag] = (securityFlagCounts[flag] ?? 0) + 1;
+        }
+    }
     return {
         counts: { ...summary.counts },
         has_destructive_changes: summary.hasDestructiveChanges,
         total_changes: summary.totalChanges,
         truncated: summary.truncated,
+        signals: {
+            stateful_destroy_count: statefulDestroyCount,
+            security_flag_counts: securityFlagCounts,
+        },
         resources: summary.resources.map((r) => ({
             address: r.address,
             type: r.type,
@@ -47327,11 +47340,17 @@ function renderMarkdown(j, summary) {
     lines.push(`**Overall risk score:** \`${j.overallScore}/100\`${confidence} · ` +
         `**Data-loss risk:** ${pct(j.dataLossRisk)}`);
     lines.push("");
-    lines.push("| Dimension | Score | Confidence |");
-    lines.push("| --- | --- | --- |");
-    lines.push(`| Destructiveness | \`${bar(j.dimensions.destructiveness.normalized)}\` ${j.dimensions.destructiveness.normalized} | ${pct(j.dimensions.destructiveness.confidence)} |`);
-    lines.push(`| Security impact | \`${bar(j.dimensions.securityImpact.normalized)}\` ${j.dimensions.securityImpact.normalized} | ${pct(j.dimensions.securityImpact.confidence)} |`);
-    lines.push(`| Blast radius | \`${bar(j.dimensions.blastRadius.normalized)}\` ${j.dimensions.blastRadius.normalized} | ${pct(j.dimensions.blastRadius.confidence)} |`);
+    // Only show the Confidence column when the provider reports it (System One).
+    const d = j.dimensions;
+    const showConf = d.destructiveness.confidence !== undefined;
+    const row = (label, dim) => showConf
+        ? `| ${label} | \`${bar(dim.normalized)}\` ${dim.normalized} | ${pct(dim.confidence)} |`
+        : `| ${label} | \`${bar(dim.normalized)}\` ${dim.normalized} |`;
+    lines.push(showConf ? "| Dimension | Score | Confidence |" : "| Dimension | Score |");
+    lines.push(showConf ? "| --- | --- | --- |" : "| --- | --- |");
+    lines.push(row("Destructiveness", d.destructiveness));
+    lines.push(row("Security impact", d.securityImpact));
+    lines.push(row("Blast radius", d.blastRadius));
     lines.push("");
     lines.push(`**Plan changes:** 🟩 ${c.create} create · 🟦 ${c.update} update · ` +
         `♻️ ${c.replace} replace · 🟥 ${c.delete} delete`);

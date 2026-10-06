@@ -106,6 +106,22 @@ fields). This covers the long tail — Azure OpenAI, `anthropic-version`, OpenRo
 When using `systemone` or `openai`, only a **redacted plan summary** is sent — resource attribute *values are
 dropped*; only change actions, types, and a few security flags are included. The `rules` provider sends nothing.
 
+### Which provider should I use?
+
+- **Start with `rules`.** Free, offline, and gives the same result every time. It reliably catches the
+  factual stuff — deletes, replaces, a security group opened to `0.0.0.0/0`, encryption turned off. Use it
+  for the merge gate (`fail-on`).
+- **Use `systemone` (jev) when you want a model's judgment.** It's built for scoring: it returns a score per
+  dimension *with a confidence number*, so you can tell when it's unsure. This is the AI option we recommend —
+  it's calibrated for exactly this task. It's paid.
+- **Use `openai` to bring any chat model** (OpenAI, Anthropic, Gemini, or a local one). It works, but chat
+  models aren't built for scoring — small models in particular return inconsistent scores. Prefer a strong
+  model, and don't rely on it for the merge gate.
+
+Whichever AI provider you pick, the action first computes the deterministic facts (counts, which resources are
+stateful, security flags) and sends those along, so the model judges on real signals instead of guessing. The
+score and verdict always stay consistent, and the verdict is never *less* severe than those facts imply.
+
 ## See it in action
 
 The [**Demo** workflow](https://github.com/nandotorres/terraform-plan-verdict/actions/workflows/demo.yml)

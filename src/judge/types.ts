@@ -83,11 +83,27 @@ export function maxVerdict(a: Verdict, b: Verdict): Verdict {
 
 /** The state payload sent to AI providers. Attribute values are never included. */
 export function toState(summary: PlanSummary) {
+  // Deterministic facts computed by the rules layer, so the model judges on
+  // grounded signals instead of guessing (e.g. whether a DB is being replaced).
+  const statefulDestroyCount = summary.resources.filter(
+    (r) => r.stateful && (r.action === "delete" || r.action === "replace"),
+  ).length;
+  const securityFlagCounts: Record<string, number> = {};
+  for (const r of summary.resources) {
+    for (const flag of r.securityFlags) {
+      securityFlagCounts[flag] = (securityFlagCounts[flag] ?? 0) + 1;
+    }
+  }
+
   return {
     counts: { ...summary.counts },
     has_destructive_changes: summary.hasDestructiveChanges,
     total_changes: summary.totalChanges,
     truncated: summary.truncated,
+    signals: {
+      stateful_destroy_count: statefulDestroyCount,
+      security_flag_counts: securityFlagCounts,
+    },
     resources: summary.resources.map((r) => ({
       address: r.address,
       type: r.type,

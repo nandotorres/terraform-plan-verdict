@@ -36,17 +36,18 @@ export function renderMarkdown(j: Judgment, summary: PlanSummary): string {
       `**Data-loss risk:** ${pct(j.dataLossRisk)}`,
   );
   lines.push("");
-  lines.push("| Dimension | Score | Confidence |");
-  lines.push("| --- | --- | --- |");
-  lines.push(
-    `| Destructiveness | \`${bar(j.dimensions.destructiveness.normalized)}\` ${j.dimensions.destructiveness.normalized} | ${pct(j.dimensions.destructiveness.confidence)} |`,
-  );
-  lines.push(
-    `| Security impact | \`${bar(j.dimensions.securityImpact.normalized)}\` ${j.dimensions.securityImpact.normalized} | ${pct(j.dimensions.securityImpact.confidence)} |`,
-  );
-  lines.push(
-    `| Blast radius | \`${bar(j.dimensions.blastRadius.normalized)}\` ${j.dimensions.blastRadius.normalized} | ${pct(j.dimensions.blastRadius.confidence)} |`,
-  );
+  // Only show the Confidence column when the provider reports it (System One).
+  const d = j.dimensions;
+  const showConf = d.destructiveness.confidence !== undefined;
+  const row = (label: string, dim: { normalized: number; confidence?: number }) =>
+    showConf
+      ? `| ${label} | \`${bar(dim.normalized)}\` ${dim.normalized} | ${pct(dim.confidence)} |`
+      : `| ${label} | \`${bar(dim.normalized)}\` ${dim.normalized} |`;
+  lines.push(showConf ? "| Dimension | Score | Confidence |" : "| Dimension | Score |");
+  lines.push(showConf ? "| --- | --- | --- |" : "| --- | --- |");
+  lines.push(row("Destructiveness", d.destructiveness));
+  lines.push(row("Security impact", d.securityImpact));
+  lines.push(row("Blast radius", d.blastRadius));
   lines.push("");
   lines.push(
     `**Plan changes:** 🟩 ${c.create} create · 🟦 ${c.update} update · ` +
