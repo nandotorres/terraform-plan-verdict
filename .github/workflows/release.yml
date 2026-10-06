@@ -73,7 +73,6 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME}"
           MAJOR="${VERSION%%.*}"        # v1.2.3 -> v1
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -f "$MAJOR"
-          git push origin "$MAJOR" --force
+          # checkout uses persist-credentials:false, so authenticate the push explicitly.
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "refs/tags/$MAJOR"
