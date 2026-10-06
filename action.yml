@@ -82,5 +82,5 @@ outputs:
     description: "URL of the posted/updated PR comment, if any."
 
 runs:
-  using: "node20"
+  using: "node24"
   main: "dist/index.js"
