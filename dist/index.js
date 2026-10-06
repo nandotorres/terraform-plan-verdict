@@ -46271,10 +46271,14 @@ async function judgeWithOpenAI(summary, opts) {
         securityImpact: { score: clamp(parsed.security_impact, 0, 4), normalized: normalizeLevel(parsed.security_impact) },
     };
     const overallScore = aggregate(dimensions);
+    // Keep the verdict consistent with the dimension scores. Trust the model's
+    // verdict only when it is *more* severe than the score implies — never less
+    // (a risk tool must not under-report).
+    const verdict = maxVerdict(verdictFromScore(overallScore), coerceVerdict(parsed.verdict, overallScore));
     return {
         provider: "openai",
         model: opts.model,
-        verdict: coerceVerdict(parsed.verdict, overallScore),
+        verdict,
         overallScore,
         dataLossRisk: clamp(Number(parsed.data_loss_risk) || 0, 0, 1),
         dimensions,
