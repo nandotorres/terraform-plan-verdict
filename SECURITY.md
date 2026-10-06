@@ -49,5 +49,5 @@ set of security flags. Resource attribute **values are never transmitted**.
 ## Verifying a release
 
 ```sh
-gh attestation verify dist/index.js --repo nandotorres/terraform-plan-veredict
+gh attestation verify dist/index.js --repo nandotorres/terraform-plan-verdict
 ```
