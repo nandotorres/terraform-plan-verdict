@@ -37,7 +37,9 @@ jobs:
       # --ignore-scripts blocks dependency lifecycle scripts during install.
       - run: npm ci --ignore-scripts
 
-      - run: npm audit --audit-level=high
+      # Gate on dependencies that ship in dist/. Dev-only tooling advisories are
+      # tracked via Dependabot but never reach users.
+      - run: npm audit --omit=dev --audit-level=high
 
       - run: npm run typecheck
       - run: npm test

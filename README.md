@@ -1,14 +1,40 @@
 # Terraform Plan Verdict
 
-Score a **Terraform plan** and surface a clear change-risk verdict in your pull requests:
+Most teams "review" Terraform with a trivial check: *does the plan contain `destroy`? then ping someone.*
+This **extends that trivial check** into a graded, explained risk verdict — one that doesn't cry wolf over a
+harmless delete and doesn't wave through the dangerous changes a `destroy` grep never sees.
+
+It scores a **Terraform plan** across blast radius, destructiveness, and security impact, estimates data-loss
+risk, and returns an overall `LOW` / `MEDIUM` / `HIGH` / `CRITICAL` verdict — surfaced in your pull requests:
 
 - 🧾 Job summary
 - 💬 Sticky PR comment
 - 🏷️ PR labels
 - 📤 Step outputs for the rest of your workflow
 
-It grades the plan across blast radius, destructiveness, and security impact, estimates data-loss risk, and
-returns an overall `LOW` / `MEDIUM` / `HIGH` / `CRITICAL` verdict.
+## Why not just grep for `destroy`?
+
+Fair question — and for the simplest case, you don't need this. The default provider is **free, deterministic
+rules, no AI**, so "has `destroy` → review" is already covered out of the box. But a binary tripwire is *both
+too loud and too quiet*:
+
+- **It cries wolf.** Destroying a `null_resource`, a log group, or a cache node is harmless. If every delete
+  blocks or pings, reviewers learn to rubber-stamp — and the one dangerous destroy slips through.
+- **It misses the scary plans that have no `destroy`.** These all pass a grep: opening a security group to
+  `0.0.0.0/0`, flipping `encrypted` to `false`, widening an IAM policy to `*`, making a resource
+  `publicly_accessible`, or an in-place `update` that causes downtime.
+- **Not all destroys are equal.** Replacing a stateless worker and replacing the primary database both render
+  as `replace`. You want *triage* (auto-merge / normal review / owner sign-off), not one tripwire.
+- **The value is the workflow.** A grep gives you a boolean in a log. This gives a consistent verdict in the PR
+  summary, a sticky comment, labels, a `fail-on` gate, and machine-readable outputs for later steps.
+
+The optional AI providers aren't there to find the word `destroy`. They're for the judgment a rules table is
+bad at — weighing resource semantics and blast radius, and explaining the risk in plain language for
+non-infra reviewers. They're opt-in; ignore them and the free rules still beat a grep.
+
+> **If your team genuinely only cares about `destroy`:** use `provider: rules` with `fail-on: high`. You get a
+> better grep — it won't block a trivial `null_resource` delete, and it *will* catch the public-exposure change
+> a grep misses — with zero AI and zero cost.
 
 ## Providers
 

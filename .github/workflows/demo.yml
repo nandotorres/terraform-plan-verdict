@@ -1,0 +1,51 @@
+name: Demo
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "examples/**"
+      - "src/**"
+      - "dist/**"
+      - "action.yml"
+
+permissions: {}
+
+jobs:
+  scenarios:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [low, medium, high, critical]
+    steps:
+      - name: Harden runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          disable-sudo: true
+          egress-policy: audit
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_wrapper: false
+
+      - name: Generate a real plan (offline, no cloud)
+        run: ./examples/generate-plan.sh examples/${{ matrix.scenario }}
+
+      - name: Score with the local action (free rules provider)
+        uses: ./
+        with:
+          plan-json: examples/${{ matrix.scenario }}/plan.json
+          provider: rules
+          comment: false
+          labels: false
+          summary: true
+          fail-on: none
