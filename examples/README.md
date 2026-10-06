@@ -9,18 +9,23 @@ Each scenario is one config parameterized by `var.phase`:
 - `phase=base` — the "before" world (applied to create state).
 - `phase=change` — the "after" world (the diff that gets scored).
 
-## Run one
+## Run one locally
 
 ```sh
-./examples/generate-plan.sh examples/high
-# -> examples/high/plan.json
+npm run build                              # once (builds dist/)
 
-# score it with the free rules provider
-terraform show -json examples/high/tfplan >/dev/null  # already produced plan.json
+./examples/generate-plan.sh examples/high  # -> examples/high/plan.json (offline, no cloud)
+npm run score examples/high/plan.json      # score it with the free rules provider
 ```
 
-Then feed `plan.json` to the action (see the repo README), or run the whole set in CI via the
-[`Demo` workflow](../.github/workflows/demo.yml), which posts each verdict to the job summary.
+`npm run score` prints the verdict, score, and the full `scores-json`. Pass a provider as the second
+argument to try an AI model, e.g. `npm run score examples/high/plan.json openai` (set `OPENAI_API_KEY`
+and any `base-url` via env first).
+
+The generated `plan.json` and Terraform state are git-ignored — they're throwaway local artifacts.
+
+To see all scenarios at once in CI, run the [`Demo` workflow](../.github/workflows/demo.yml), which posts
+each verdict to the job summary.
 
 ## Expected verdicts
 
