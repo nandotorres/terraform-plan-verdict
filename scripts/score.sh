@@ -5,6 +5,12 @@
 #   npm run build            # once, or after changing src/
 #   ./scripts/score.sh examples/high/plan.json [provider]
 #
+# Optional env for AI providers:
+#   MODEL=...  BASE_URL=...  API_KEY=...
+# e.g. local Ollama (no token):
+#   MODEL=llama3.2:1b BASE_URL=http://localhost:11434/v1 \
+#     ./scripts/score.sh examples/high/plan.json openai
+#
 set -euo pipefail
 
 plan="${1:?usage: score.sh <plan.json> [provider]}"
@@ -21,6 +27,9 @@ plan="$(cd "$(dirname "$plan")" && pwd)/$(basename "$plan")"
 out="$(mktemp)"
 env "INPUT_PLAN-JSON=$plan" \
     "INPUT_PROVIDER=$provider" \
+    ${MODEL:+"INPUT_MODEL=$MODEL"} \
+    ${BASE_URL:+"INPUT_BASE-URL=$BASE_URL"} \
+    ${API_KEY:+"INPUT_API-KEY=$API_KEY"} \
     INPUT_COMMENT=false INPUT_LABELS=false INPUT_SUMMARY=false "INPUT_FAIL-ON=none" \
     GITHUB_OUTPUT="$out" \
     node "$here/dist/index.js"
