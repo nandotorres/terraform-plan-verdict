@@ -1,0 +1,78 @@
+name: "Terraform Plan jev Score"
+description: "Score a Terraform plan with jev (TypeSafe AI): risk verdict in the job summary, as a PR comment, and as labels."
+author: "nandotorres"
+branding:
+  icon: "shield"
+  color: "purple"
+
+inputs:
+  plan-json:
+    description: "Path to the Terraform plan in JSON form (output of `terraform show -json tfplan`)."
+    required: true
+  typesafe-api-key:
+    description: "API key for jev / TypeSafe AI. Pass via a secret. Falls back to TYPESAFE_API_KEY env."
+    required: false
+  model:
+    description: "jev model to use."
+    required: false
+    default: "jev-latest"
+  github-token:
+    description: "Token used to post comments and apply labels."
+    required: false
+    default: ${{ github.token }}
+  comment:
+    description: "Post the verdict as a PR comment ('true' | 'false')."
+    required: false
+    default: "true"
+  comment-mode:
+    description: "'upsert' (edit a single sticky comment) | 'new' (always a new comment)."
+    required: false
+    default: "upsert"
+  labels:
+    description: "Apply risk labels to the PR ('true' | 'false')."
+    required: false
+    default: "false"
+  label-prefix:
+    description: "Prefix for applied labels."
+    required: false
+    default: "plan/"
+  fail-on:
+    description: "Fail the job when the verdict is at or above this level: 'none' | 'medium' | 'high' | 'critical'."
+    required: false
+    default: "none"
+  summary:
+    description: "Write the verdict to the GitHub step summary ('true' | 'false')."
+    required: false
+    default: "true"
+  max-resources:
+    description: "Cap on resource changes sent to jev (controls token usage). 0 = no cap."
+    required: false
+    default: "200"
+
+outputs:
+  verdict:
+    description: "Overall verdict: LOW | MEDIUM | HIGH | CRITICAL."
+  verdict-confidence:
+    description: "jev's reported confidence in the verdict (0..1)."
+  overall-score:
+    description: "Aggregated risk score, 0..100."
+  scores-json:
+    description: "Full per-dimension breakdown as JSON."
+  data-loss-risk:
+    description: "Probability that the plan causes irreversible data loss (0..1)."
+  has-destructive-changes:
+    description: "'true' if the plan deletes or replaces any resource."
+  resources-created:
+    description: "Count of resources to be created."
+  resources-updated:
+    description: "Count of resources to be updated in place."
+  resources-deleted:
+    description: "Count of resources to be destroyed."
+  resources-replaced:
+    description: "Count of resources to be replaced (destroy + recreate)."
+  comment-url:
+    description: "URL of the posted/updated PR comment, if any."
+
+runs:
+  using: "node20"
+  main: "dist/index.js"
