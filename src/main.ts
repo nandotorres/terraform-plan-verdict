@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import * as core from "@actions/core";
 import * as github from "@actions/github";
-import { judgePlan, verdictAtOrAbove, type Verdict } from "./jev.js";
+import { judgePlan, verdictAtOrAbove, type ProviderName, type Verdict } from "./judge/index.js";
 import { summarizePlan, type PlanJson } from "./plan.js";
 import { renderMarkdown, riskLabels } from "./render.js";
 import { applyLabels, getPrContext, upsertComment } from "./github.js";
@@ -12,8 +12,10 @@ function boolInput(name: string): boolean {
 
 async function run(): Promise<void> {
   const planPath = core.getInput("plan-json", { required: true });
-  const apiKey = core.getInput("typesafe-api-key") || process.env.TYPESAFE_API_KEY;
-  const model = core.getInput("model") || "jev-latest";
+  const provider = (core.getInput("provider") || "rules").toLowerCase() as ProviderName;
+  const apiKey = core.getInput("api-key") || process.env.TYPESAFE_API_KEY || process.env.OPENAI_API_KEY;
+  const model = core.getInput("model") || (provider === "systemone" ? "jev-latest" : "");
+  const baseURL = core.getInput("base-url") || process.env.TYPESAFE_BASE_URL || process.env.OPENAI_BASE_URL;
   const maxResources = Number.parseInt(core.getInput("max-resources") || "200", 10);
 
   let planRaw: string;
@@ -42,14 +44,15 @@ async function run(): Promise<void> {
     return;
   }
 
-  core.info(`Judging plan with jev (${model}): ${summary.totalChanges} changes.`);
-  const judgment = await judgePlan(summary, { apiKey, model });
+  core.info(`Judging plan with '${provider}': ${summary.totalChanges} changes.`);
+  const judgment = await judgePlan(provider, summary, { apiKey, model, baseURL });
 
   const markdown = renderMarkdown(judgment, summary);
 
   // Outputs for downstream steps.
   core.setOutput("verdict", judgment.verdict);
-  core.setOutput("verdict-confidence", judgment.verdictConfidence.toFixed(4));
+  core.setOutput("verdict-confidence", (judgment.verdictConfidence ?? 1).toFixed(4));
+  core.setOutput("provider", judgment.provider);
   core.setOutput("overall-score", String(judgment.overallScore));
   core.setOutput("scores-json", JSON.stringify(judgment));
   core.setOutput("data-loss-risk", judgment.dataLossRisk.toFixed(4));

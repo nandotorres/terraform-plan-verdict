@@ -43,8 +43,9 @@ This action treats supply-chain security as a first-class concern.
 
 ## Data handling
 
-Only a redacted plan summary is sent to jev for scoring: change actions, resource types, and a small
-set of security flags. Resource attribute **values are never transmitted**.
+The default `rules` provider runs fully offline and transmits nothing. The `systemone` and `openai`
+providers receive only a redacted plan summary: change actions, resource types, and a small set of
+security flags. Resource attribute **values are never transmitted**.
 
 ## Verifying a release
 

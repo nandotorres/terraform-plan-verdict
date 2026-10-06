@@ -1,5 +1,5 @@
-name: "Terraform Plan jev Score"
-description: "Score a Terraform plan with jev (TypeSafe AI): risk verdict in the job summary, as a PR comment, and as labels."
+name: "Terraform Plan Verdict"
+description: "Score a Terraform plan and surface a risk verdict in the job summary, as a PR comment, and as labels. Free deterministic rules by default; optional jev/TypeSafe or any OpenAI-compatible model."
 author: "nandotorres"
 branding:
   icon: "shield"
@@ -9,13 +9,19 @@ inputs:
   plan-json:
     description: "Path to the Terraform plan in JSON form (output of `terraform show -json tfplan`)."
     required: true
-  typesafe-api-key:
-    description: "API key for jev / TypeSafe AI. Pass via a secret. Falls back to TYPESAFE_API_KEY env."
+  provider:
+    description: "Judgment provider: 'rules' (free, offline, default), 'systemone' (jev / TypeSafe-compatible), or 'openai' (any OpenAI-compatible endpoint)."
+    required: false
+    default: "rules"
+  api-key:
+    description: "API key for the chosen provider. Not needed for 'rules'. Falls back to TYPESAFE_API_KEY / OPENAI_API_KEY."
     required: false
   model:
-    description: "jev model to use."
+    description: "Model to use (provider-specific, e.g. 'jev-latest', 'gpt-4o-mini', 'llama3.1')."
     required: false
-    default: "jev-latest"
+  base-url:
+    description: "API root for the provider. Enables self-hosted or alternative endpoints. Falls back to TYPESAFE_BASE_URL / OPENAI_BASE_URL."
+    required: false
   github-token:
     description: "Token used to post comments and apply labels."
     required: false
@@ -52,6 +58,8 @@ inputs:
 outputs:
   verdict:
     description: "Overall verdict: LOW | MEDIUM | HIGH | CRITICAL."
+  provider:
+    description: "Provider that produced the judgment."
   verdict-confidence:
     description: "jev's reported confidence in the verdict (0..1)."
   overall-score:

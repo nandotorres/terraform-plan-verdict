@@ -1,5 +1,5 @@
 /** Markdown rendering for the job summary and PR comment. */
-import type { Judgment, Verdict } from "./jev.js";
+import type { Judgment, Verdict } from "./judge/index.js";
 import type { PlanSummary } from "./plan.js";
 
 export const COMMENT_MARKER = "<!-- terraform-plan-jev-score -->";
@@ -11,8 +11,8 @@ const BADGE: Record<Verdict, string> = {
   CRITICAL: "🔴 CRITICAL",
 };
 
-function pct(n: number): string {
-  return `${Math.round(n * 100)}%`;
+function pct(n: number | undefined): string {
+  return n === undefined ? "—" : `${Math.round(n * 100)}%`;
 }
 
 function bar(normalized: number): string {
@@ -30,9 +30,9 @@ export function renderMarkdown(j: Judgment, summary: PlanSummary): string {
   lines.push(COMMENT_MARKER);
   lines.push(`## 🧑‍⚖️ Terraform Plan Verdict — ${BADGE[j.verdict]}`);
   lines.push("");
+  const confidence = j.verdictConfidence === undefined ? "" : ` · **Confidence:** ${pct(j.verdictConfidence)}`;
   lines.push(
-    `**Overall risk score:** \`${j.overallScore}/100\` · ` +
-      `**Verdict confidence:** ${pct(j.verdictConfidence)} · ` +
+    `**Overall risk score:** \`${j.overallScore}/100\`${confidence} · ` +
       `**Data-loss risk:** ${pct(j.dataLossRisk)}`,
   );
   lines.push("");
@@ -73,9 +73,8 @@ export function renderMarkdown(j: Judgment, summary: PlanSummary): string {
     lines.push("");
   }
 
-  lines.push(
-    `<sub>Judged by jev (\`${j.model}\`) · ${j.usage.inputTokens + j.usage.outputTokens} tokens</sub>`,
-  );
+  const tokens = j.usage ? ` · ${j.usage.inputTokens + j.usage.outputTokens} tokens` : "";
+  lines.push(`<sub>Judged by ${j.provider} (\`${j.model}\`)${tokens}</sub>`);
 
   return lines.join("\n");
 }

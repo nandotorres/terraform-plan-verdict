@@ -36,29 +36,31 @@ must be unique across the Marketplace, and the release must point at a real tag.
 
 **Short description**
 
-> Score a Terraform plan with jev (TypeSafe AI) and surface the risk verdict in the job summary, as a PR
-> comment, and as labels.
+> Score a Terraform plan and surface the risk verdict in the job summary, as a PR comment, and as labels.
+> Free deterministic rules by default; optional jev/TypeSafe or any OpenAI-compatible model.
 
 **Keywords**
 
 ```
-terraform, terraform-plan, jev, typesafe, typesafe-ai, system-one, systemone,
-infrastructure-as-code, iac, risk, risk-scoring, security, pull-request, code-review,
-devops, platform-engineering, gitops, change-management
+terraform, terraform-plan, risk, risk-scoring, security, pull-request, code-review,
+infrastructure-as-code, iac, devops, platform-engineering, gitops, change-management,
+jev, typesafe, typesafe-ai, system-one, systemone, openai, ollama, llm
 ```
 
 **Longer description (optional)**
 
-> Terraform Plan Verdict turns `terraform show -json` output into a clear change-risk verdict using jev,
-> TypeSafe AI's System One model. It grades blast radius, destructiveness, and security impact, estimates
-> data-loss risk, and posts a LOW/MEDIUM/HIGH/CRITICAL verdict with confidence to the job summary and your
-> pull requests. Add risk labels, gate merges with `fail-on`, and consume the scores as step outputs. Only a
-> redacted plan summary is sent for scoring — attribute values never leave your workflow.
+> Terraform Plan Verdict turns `terraform show -json` output into a clear change-risk verdict. By default it
+> uses free, deterministic rules — no API key, no network. Optionally plug in jev (TypeSafe System One) or any
+> OpenAI-compatible model (OpenAI, Groq, OpenRouter, or local Ollama) for calibrated AI judgment. It grades
+> blast radius, destructiveness, and security impact, estimates data-loss risk, and posts a
+> LOW/MEDIUM/HIGH/CRITICAL verdict to the job summary and your pull requests. Add risk labels, gate merges
+> with `fail-on`, and consume the scores as step outputs. AI providers receive only a redacted plan summary —
+> attribute values never leave your workflow.
 
 ## Pre-publish checklist
 
 - [ ] `npm run build` committed; CI green on `main`.
 - [ ] `README.md` examples use `nandotorres/terraform-plan-verdict@v1`.
 - [ ] `action.yml` name, description, and branding are final.
-- [ ] `TYPESAFE_API_KEY` usage documented for consumers.
+- [ ] Provider options (`rules` / `systemone` / `openai`) documented for consumers.
 - [ ] `v1.0.0` tag pushed and release published.

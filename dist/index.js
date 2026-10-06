@@ -31696,6 +31696,174 @@ const external_node_fs_namespaceObject = __WEBPACK_EXTERNAL_createRequire(import
 var core = __nccwpck_require__(7484);
 // EXTERNAL MODULE: ./node_modules/@actions/github/lib/github.js
 var github = __nccwpck_require__(3228);
+;// CONCATENATED MODULE: ./src/judge/types.ts
+const MAX_LEVEL = 4; // rubrics have 5 levels (0..4)
+const WEIGHTS = { destructiveness: 0.4, securityImpact: 0.3, blastRadius: 0.3 };
+const ORDER = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
+function clamp(n, min, max) {
+    return Math.max(min, Math.min(max, n));
+}
+function normalizeLevel(level) {
+    return Math.round((clamp(level, 0, MAX_LEVEL) / MAX_LEVEL) * 100);
+}
+function aggregate(d) {
+    return Math.round(WEIGHTS.destructiveness * d.destructiveness.normalized +
+        WEIGHTS.securityImpact * d.securityImpact.normalized +
+        WEIGHTS.blastRadius * d.blastRadius.normalized);
+}
+function verdictFromScore(score) {
+    if (score >= 75)
+        return "CRITICAL";
+    if (score >= 50)
+        return "HIGH";
+    if (score >= 25)
+        return "MEDIUM";
+    return "LOW";
+}
+function verdictAtOrAbove(verdict, threshold) {
+    return ORDER[verdict] >= ORDER[threshold];
+}
+function maxVerdict(a, b) {
+    return ORDER[a] >= ORDER[b] ? a : b;
+}
+/** The state payload sent to AI providers. Attribute values are never included. */
+function toState(summary) {
+    return {
+        counts: { ...summary.counts },
+        has_destructive_changes: summary.hasDestructiveChanges,
+        total_changes: summary.totalChanges,
+        truncated: summary.truncated,
+        resources: summary.resources.map((r) => ({
+            address: r.address,
+            type: r.type,
+            provider: r.provider,
+            action: r.action,
+            stateful: r.stateful,
+            security_flags: r.securityFlags,
+        })),
+    };
+}
+
+;// CONCATENATED MODULE: ./src/judge/openai.ts
+
+const DEFAULT_BASE = "https://api.openai.com/v1";
+const SYSTEM_PROMPT = [
+    "You are a Terraform change-risk reviewer.",
+    "Given a redacted plan summary, rate the change and reply with ONLY a JSON object:",
+    '{"blast_radius":0-4,"destructiveness":0-4,"security_impact":0-4,',
+    '"data_loss_risk":0.0-1.0,"verdict":"LOW|MEDIUM|HIGH|CRITICAL"}.',
+    "Scores are integers 0 (none) to 4 (severe). No prose, no code fences.",
+].join(" ");
+function extractJson(content) {
+    const start = content.indexOf("{");
+    const end = content.lastIndexOf("}");
+    if (start === -1 || end === -1)
+        throw new Error("No JSON object in model response.");
+    return JSON.parse(content.slice(start, end + 1));
+}
+function coerceVerdict(value, fallbackScore) {
+    const v = String(value).toUpperCase();
+    if (v === "LOW" || v === "MEDIUM" || v === "HIGH" || v === "CRITICAL")
+        return v;
+    return verdictFromScore(fallbackScore);
+}
+/** Judge via any OpenAI-compatible /chat/completions endpoint (OpenAI, Groq, Ollama, ...). */
+async function judgeWithOpenAI(summary, opts) {
+    const doFetch = opts.fetch ?? fetch;
+    const base = (opts.baseURL ?? DEFAULT_BASE).replace(/\/+$/, "");
+    const res = await doFetch(`${base}/chat/completions`, {
+        method: "POST",
+        headers: {
+            "content-type": "application/json",
+            ...(opts.apiKey ? { authorization: `Bearer ${opts.apiKey}` } : {}),
+        },
+        body: JSON.stringify({
+            model: opts.model,
+            temperature: 0,
+            response_format: { type: "json_object" },
+            messages: [
+                { role: "system", content: SYSTEM_PROMPT },
+                { role: "user", content: JSON.stringify(toState(summary)) },
+            ],
+        }),
+    });
+    if (!res.ok) {
+        throw new Error(`OpenAI-compatible endpoint returned ${res.status}: ${await res.text()}`);
+    }
+    const data = (await res.json());
+    const content = data.choices?.[0]?.message?.content;
+    if (!content)
+        throw new Error("Empty response from model.");
+    const parsed = extractJson(content);
+    const dimensions = {
+        blastRadius: { score: clamp(parsed.blast_radius, 0, 4), normalized: normalizeLevel(parsed.blast_radius) },
+        destructiveness: { score: clamp(parsed.destructiveness, 0, 4), normalized: normalizeLevel(parsed.destructiveness) },
+        securityImpact: { score: clamp(parsed.security_impact, 0, 4), normalized: normalizeLevel(parsed.security_impact) },
+    };
+    const overallScore = aggregate(dimensions);
+    return {
+        provider: "openai",
+        model: opts.model,
+        verdict: coerceVerdict(parsed.verdict, overallScore),
+        overallScore,
+        dataLossRisk: clamp(Number(parsed.data_loss_risk) || 0, 0, 1),
+        dimensions,
+        usage: {
+            inputTokens: data.usage?.prompt_tokens ?? 0,
+            outputTokens: data.usage?.completion_tokens ?? 0,
+        },
+    };
+}
+
+;// CONCATENATED MODULE: ./src/judge/rules.ts
+
+const SECURITY_WEIGHTS = {
+    "public-network": 30,
+    "publicly-accessible": 25,
+    "encryption-disabled": 25,
+    iam: 15,
+    "secret-material": 15,
+};
+// Turn a 0..100 heuristic score back into a 0..4 rubric level for display parity.
+function toLevel(normalized) {
+    return Math.round((normalized / 100) * 4);
+}
+/** Deterministic, offline scoring. Free, no credentials, fully reproducible. */
+function judgeWithRules(summary) {
+    const { counts, resources } = summary;
+    const statefulDestroy = resources.filter((r) => r.stateful && (r.action === "delete" || r.action === "replace")).length;
+    const destructiveRaw = counts.delete * 20 + counts.replace * 12 + counts.update * 2 + statefulDestroy * 25;
+    const destructiveNorm = clamp(destructiveRaw, 0, 100);
+    const securityRaw = resources.reduce((sum, r) => sum + r.securityFlags.reduce((s, f) => s + (SECURITY_WEIGHTS[f] ?? 10), 0), 0);
+    const securityNorm = clamp(securityRaw, 0, 100);
+    const distinctTypes = new Set(resources.map((r) => r.type)).size;
+    const distinctProviders = new Set(resources.map((r) => r.provider)).size;
+    const blastRaw = summary.totalChanges * 4 + distinctTypes * 6 + distinctProviders * 10;
+    const blastNorm = clamp(blastRaw, 0, 100);
+    const dimensions = {
+        destructiveness: { score: toLevel(destructiveNorm), normalized: destructiveNorm },
+        securityImpact: { score: toLevel(securityNorm), normalized: securityNorm },
+        blastRadius: { score: toLevel(blastNorm), normalized: blastNorm },
+    };
+    const overallScore = aggregate(dimensions);
+    const dataLossRisk = statefulDestroy > 0
+        ? clamp(0.6 + 0.1 * (statefulDestroy - 1), 0, 0.95)
+        : counts.delete > 0
+            ? 0.15
+            : 0.02;
+    let verdict = verdictFromScore(overallScore);
+    if (dataLossRisk >= 0.5)
+        verdict = maxVerdict(verdict, "HIGH");
+    return {
+        provider: "rules",
+        model: "rules",
+        verdict,
+        overallScore,
+        dataLossRisk,
+        dimensions,
+    };
+}
+
 ;// CONCATENATED MODULE: ./node_modules/@typesafe-ai/sdk/dist/index.mjs
 const requestIdFrom = (headers) => headers.get("x-typesafe-request-id") ?? void 0;
 /**
@@ -32391,10 +32559,10 @@ const parseBody = async (res) => {
 
 
 //# sourceMappingURL=index.mjs.map
-;// CONCATENATED MODULE: ./src/jev.ts
+;// CONCATENATED MODULE: ./src/judge/systemone.ts
 
-const WEIGHTS = { destructiveness: 0.4, securityImpact: 0.3, blastRadius: 0.3 };
-const MAX_RUBRIC = 4; // rubrics have 5 levels (indices 0..4)
+
+// System One questions. Works with jev and any TypeSafe System One–compatible endpoint.
 const questions = {
     blast_radius: score("How broad is the impact of this plan across resources, resource types, and providers?", [
         "Trivial: no-ops only, or a single low-impact resource.",
@@ -32425,60 +32593,59 @@ const questions = {
         CRITICAL: "Dangerous; should block merge or require explicit sign-off.",
     }),
 };
-function normalize(raw) {
-    return Math.round((Math.max(0, Math.min(MAX_RUBRIC, raw)) / MAX_RUBRIC) * 100);
-}
-async function judgePlan(summary, opts) {
+async function judgeWithSystemOne(summary, opts) {
     const client = new TypeSafeClient({
         apiKey: opts.apiKey,
         defaultModel: opts.model,
+        baseURL: opts.baseURL,
+        fetch: opts.fetch,
     });
-    const state = {
-        counts: { ...summary.counts },
-        has_destructive_changes: summary.hasDestructiveChanges,
-        total_changes: summary.totalChanges,
-        truncated: summary.truncated,
-        resources: summary.resources.map((r) => ({
-            address: r.address,
-            type: r.type,
-            provider: r.provider,
-            action: r.action,
-            stateful: r.stateful,
-            security_flags: r.securityFlags,
-        })),
+    const { model, answers, usage } = await client.systemOne({ state: toState(summary), questions });
+    const dimensions = {
+        blastRadius: {
+            score: answers.blast_radius.score,
+            confidence: answers.blast_radius.confidence,
+            normalized: normalizeLevel(answers.blast_radius.score),
+        },
+        destructiveness: {
+            score: answers.destructiveness.score,
+            confidence: answers.destructiveness.confidence,
+            normalized: normalizeLevel(answers.destructiveness.score),
+        },
+        securityImpact: {
+            score: answers.security_impact.score,
+            confidence: answers.security_impact.confidence,
+            normalized: normalizeLevel(answers.security_impact.score),
+        },
     };
-    const { model, answers, usage } = await client.systemOne({ state, questions });
-    const blastRadius = {
-        score: answers.blast_radius.score,
-        confidence: answers.blast_radius.confidence,
-        normalized: normalize(answers.blast_radius.score),
-    };
-    const destructiveness = {
-        score: answers.destructiveness.score,
-        confidence: answers.destructiveness.confidence,
-        normalized: normalize(answers.destructiveness.score),
-    };
-    const securityImpact = {
-        score: answers.security_impact.score,
-        confidence: answers.security_impact.confidence,
-        normalized: normalize(answers.security_impact.score),
-    };
-    const overallScore = Math.round(WEIGHTS.destructiveness * destructiveness.normalized +
-        WEIGHTS.securityImpact * securityImpact.normalized +
-        WEIGHTS.blastRadius * blastRadius.normalized);
     return {
+        provider: "systemone",
         model,
         verdict: answers.verdict.choice,
         verdictConfidence: answers.verdict.confidence,
-        overallScore,
+        overallScore: aggregate(dimensions),
         dataLossRisk: answers.data_loss_risk.noul,
-        dimensions: { blastRadius, destructiveness, securityImpact },
+        dimensions,
         usage: { inputTokens: usage.input_tokens, outputTokens: usage.output_tokens },
     };
 }
-const ORDER = { LOW: 0, MEDIUM: 1, HIGH: 2, CRITICAL: 3 };
-function verdictAtOrAbove(verdict, threshold) {
-    return ORDER[verdict] >= ORDER[threshold];
+
+;// CONCATENATED MODULE: ./src/judge/index.ts
+
+
+
+
+function judgePlan(provider, summary, opts) {
+    switch (provider) {
+        case "rules":
+            return judgeWithRules(summary);
+        case "systemone":
+            return judgeWithSystemOne(summary, opts);
+        case "openai":
+            return judgeWithOpenAI(summary, opts);
+        default:
+            throw new Error(`Unknown provider: ${provider}`);
+    }
 }
 
 ;// CONCATENATED MODULE: ./src/plan.ts
@@ -32591,7 +32758,7 @@ const BADGE = {
     CRITICAL: "🔴 CRITICAL",
 };
 function pct(n) {
-    return `${Math.round(n * 100)}%`;
+    return n === undefined ? "—" : `${Math.round(n * 100)}%`;
 }
 function bar(normalized) {
     const filled = Math.round(normalized / 10);
@@ -32606,8 +32773,8 @@ function renderMarkdown(j, summary) {
     lines.push(COMMENT_MARKER);
     lines.push(`## 🧑‍⚖️ Terraform Plan Verdict — ${BADGE[j.verdict]}`);
     lines.push("");
-    lines.push(`**Overall risk score:** \`${j.overallScore}/100\` · ` +
-        `**Verdict confidence:** ${pct(j.verdictConfidence)} · ` +
+    const confidence = j.verdictConfidence === undefined ? "" : ` · **Confidence:** ${pct(j.verdictConfidence)}`;
+    lines.push(`**Overall risk score:** \`${j.overallScore}/100\`${confidence} · ` +
         `**Data-loss risk:** ${pct(j.dataLossRisk)}`);
     lines.push("");
     lines.push("| Dimension | Score | Confidence |");
@@ -32636,7 +32803,8 @@ function renderMarkdown(j, summary) {
         lines.push("> ℹ️ Resource list was truncated for scoring (see `max-resources`).");
         lines.push("");
     }
-    lines.push(`<sub>Judged by jev (\`${j.model}\`) · ${j.usage.inputTokens + j.usage.outputTokens} tokens</sub>`);
+    const tokens = j.usage ? ` · ${j.usage.inputTokens + j.usage.outputTokens} tokens` : "";
+    lines.push(`<sub>Judged by ${j.provider} (\`${j.model}\`)${tokens}</sub>`);
     return lines.join("\n");
 }
 function riskLabels(j, prefix) {
@@ -32726,8 +32894,10 @@ function boolInput(name) {
 }
 async function run() {
     const planPath = core.getInput("plan-json", { required: true });
-    const apiKey = core.getInput("typesafe-api-key") || process.env.TYPESAFE_API_KEY;
-    const model = core.getInput("model") || "jev-latest";
+    const provider = (core.getInput("provider") || "rules").toLowerCase();
+    const apiKey = core.getInput("api-key") || process.env.TYPESAFE_API_KEY || process.env.OPENAI_API_KEY;
+    const model = core.getInput("model") || (provider === "systemone" ? "jev-latest" : "");
+    const baseURL = core.getInput("base-url") || process.env.TYPESAFE_BASE_URL || process.env.OPENAI_BASE_URL;
     const maxResources = Number.parseInt(core.getInput("max-resources") || "200", 10);
     let planRaw;
     try {
@@ -32753,12 +32923,13 @@ async function run() {
         core.setOutput("has-destructive-changes", "false");
         return;
     }
-    core.info(`Judging plan with jev (${model}): ${summary.totalChanges} changes.`);
-    const judgment = await judgePlan(summary, { apiKey, model });
+    core.info(`Judging plan with '${provider}': ${summary.totalChanges} changes.`);
+    const judgment = await judgePlan(provider, summary, { apiKey, model, baseURL });
     const markdown = renderMarkdown(judgment, summary);
     // Outputs for downstream steps.
     core.setOutput("verdict", judgment.verdict);
-    core.setOutput("verdict-confidence", judgment.verdictConfidence.toFixed(4));
+    core.setOutput("verdict-confidence", (judgment.verdictConfidence ?? 1).toFixed(4));
+    core.setOutput("provider", judgment.provider);
     core.setOutput("overall-score", String(judgment.overallScore));
     core.setOutput("scores-json", JSON.stringify(judgment));
     core.setOutput("data-loss-risk", judgment.dataLossRisk.toFixed(4));
