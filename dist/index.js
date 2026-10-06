@@ -37643,26 +37643,35 @@ function coerceVerdict(value, fallbackScore) {
         return v;
     return verdictFromScore(fallbackScore);
 }
-/** Judge via any OpenAI-compatible /chat/completions endpoint (OpenAI, Groq, Ollama, ...). */
+/**
+ * Judge via any OpenAI-compatible /chat/completions endpoint:
+ * OpenAI, Gemini, Anthropic (compat), Groq, OpenRouter, Mistral, DeepSeek,
+ * Together, Ollama, LM Studio, ...
+ */
 async function judgeWithOpenAI(summary, opts) {
     const doFetch = opts.fetch ?? fetch;
     const base = (opts.baseURL ?? DEFAULT_BASE).replace(/\/+$/, "");
-    const res = await doFetch(`${base}/chat/completions`, {
-        method: "POST",
-        headers: {
-            "content-type": "application/json",
-            ...(opts.apiKey ? { authorization: `Bearer ${opts.apiKey}` } : {}),
-        },
-        body: JSON.stringify({
-            model: opts.model,
-            temperature: 0,
-            response_format: { type: "json_object" },
-            messages: [
-                { role: "system", content: SYSTEM_PROMPT },
-                { role: "user", content: JSON.stringify(toState(summary)) },
-            ],
-        }),
+    const url = `${base}/chat/completions`;
+    const headers = {
+        "content-type": "application/json",
+        ...(opts.apiKey ? { authorization: `Bearer ${opts.apiKey}` } : {}),
+    };
+    const messages = [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: JSON.stringify(toState(summary)) },
+    ];
+    const body = (jsonMode) => JSON.stringify({
+        model: opts.model,
+        temperature: 0,
+        ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+        messages,
     });
+    // Request strict JSON mode first; some providers (Gemini, Anthropic compat)
+    // reject response_format, so retry once without it (extractJson is tolerant).
+    let res = await doFetch(url, { method: "POST", headers, body: body(true) });
+    if (!res.ok && (res.status === 400 || res.status === 404 || res.status === 422)) {
+        res = await doFetch(url, { method: "POST", headers, body: body(false) });
+    }
     if (!res.ok) {
         throw new Error(`OpenAI-compatible endpoint returned ${res.status}: ${await res.text()}`);
     }

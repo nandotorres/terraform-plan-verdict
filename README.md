@@ -49,9 +49,36 @@ The judgment layer is pluggable. Pick what fits — the default needs **no API k
 | --- | --- | --- | --- |
 | `rules` (default) | Free | nothing | Deterministic heuristics over the plan. Reproducible, offline. |
 | `systemone` | Paid | API key | [jev](https://typesafe.ai) or any TypeSafe System One–compatible endpoint. Calibrated scores + confidence. |
-| `openai` | Varies | API key* | Any OpenAI-compatible `/chat/completions` endpoint — OpenAI, Groq, OpenRouter, or local **Ollama** / LM Studio. |
+| `openai` | Varies | API key* | Any OpenAI-compatible `/chat/completions` endpoint — OpenAI, **Anthropic**, **Gemini**, Groq, OpenRouter, Mistral, DeepSeek, or local **Ollama** / LM Studio. |
 
 \* Local endpoints (e.g. Ollama) usually need no key.
+
+### Using Anthropic, Gemini, or any other model
+
+The `openai` provider works with any OpenAI-compatible endpoint — just set `base-url`, `model`, and `api-key`:
+
+| Provider | `base-url` | example `model` |
+| --- | --- | --- |
+| OpenAI | *(default)* | `gpt-4o-mini` |
+| Anthropic (Claude) | `https://api.anthropic.com/v1` | `claude-sonnet-4-5` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.0-flash` |
+| Groq | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
+| OpenRouter | `https://openrouter.ai/api/v1` | `anthropic/claude-sonnet-4-5` |
+| Mistral | `https://api.mistral.ai/v1` | `mistral-large-latest` |
+| DeepSeek | `https://api.deepseek.com` | `deepseek-chat` |
+| Ollama (local) | `http://localhost:11434/v1` | `llama3.1` |
+
+```yaml
+- uses: nandotorres/terraform-plan-verdict@v0
+  with:
+    plan-json: plan.json
+    provider: openai
+    base-url: https://api.anthropic.com/v1
+    model: claude-sonnet-4-5
+    api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+Strict JSON mode is requested automatically and retried without it for endpoints that don't support it (e.g. Gemini, Anthropic), so responses parse across providers.
 
 When using `systemone` or `openai`, only a **redacted plan summary** is sent — resource attribute *values are
 dropped*; only change actions, types, and a few security flags are included. The `rules` provider sends nothing.
