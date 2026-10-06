@@ -46254,7 +46254,7 @@ async function judgeWithOpenAI(summary, opts) {
     // Request strict JSON mode first; some providers (Gemini, Anthropic compat)
     // reject response_format, so retry once without it (extractJson is tolerant).
     let res = await doFetch(url, { method: "POST", headers, body: body(true) });
-    if (!res.ok && (res.status === 400 || res.status === 404 || res.status === 422)) {
+    if (!res.ok && (res.status === 400 || res.status === 422)) {
         res = await doFetch(url, { method: "POST", headers, body: body(false) });
     }
     if (!res.ok) {
