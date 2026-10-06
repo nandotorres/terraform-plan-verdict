@@ -2,7 +2,9 @@ import { readFileSync } from "node:fs";
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { judgePlan, verdictAtOrAbove, type ProviderName, type Verdict } from "./judge/index.js";
+import { parse as parseYaml } from "yaml";
 import { loadPlan, summarizePlan } from "./plan.js";
+import type { ProviderExtra } from "./judge/types.js";
 import { renderMarkdown, riskLabels } from "./render.js";
 import { applyLabels, getPrContext, upsertComment } from "./github.js";
 
@@ -16,6 +18,18 @@ async function run(): Promise<void> {
   const apiKey = core.getInput("api-key") || process.env.TYPESAFE_API_KEY || process.env.OPENAI_API_KEY;
   const model = core.getInput("model") || (provider === "systemone" ? "jev-latest" : "");
   const baseURL = core.getInput("base-url") || process.env.TYPESAFE_BASE_URL || process.env.OPENAI_BASE_URL;
+
+  let extra: ProviderExtra | undefined;
+  const optsRaw = core.getInput("provider-options");
+  if (optsRaw.trim()) {
+    try {
+      const parsed = parseYaml(optsRaw) as ProviderExtra;
+      if (parsed && typeof parsed === "object") extra = parsed;
+    } catch (e) {
+      core.setFailed(`provider-options is not valid YAML/JSON: ${(e as Error).message}`);
+      return;
+    }
+  }
   const maxResources = Number.parseInt(core.getInput("max-resources") || "200", 10);
 
   let planRaw: string;
@@ -45,7 +59,7 @@ async function run(): Promise<void> {
   }
 
   core.info(`Judging plan with '${provider}': ${summary.totalChanges} changes.`);
-  const judgment = await judgePlan(provider, summary, { apiKey, model, baseURL });
+  const judgment = await judgePlan(provider, summary, { apiKey, model, baseURL, extra });
 
   const markdown = renderMarkdown(judgment, summary);
 

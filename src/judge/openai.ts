@@ -57,10 +57,13 @@ export async function judgeWithOpenAI(
 ): Promise<Judgment> {
   const doFetch = opts.fetch ?? fetch;
   const base = (opts.baseURL ?? DEFAULT_BASE).replace(/\/+$/, "");
-  const url = `${base}/chat/completions`;
+  const query = opts.extra?.query ?? {};
+  const qs = new URLSearchParams(query).toString();
+  const url = `${base}/chat/completions${qs ? `?${qs}` : ""}`;
   const headers: Record<string, string> = {
     "content-type": "application/json",
     ...(opts.apiKey ? { authorization: `Bearer ${opts.apiKey}` } : {}),
+    ...(opts.extra?.headers ?? {}),
   };
   const messages = [
     { role: "system", content: SYSTEM_PROMPT },
@@ -71,6 +74,7 @@ export async function judgeWithOpenAI(
       model: opts.model,
       temperature: 0,
       ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+      ...(opts.extra?.body ?? {}),
       messages,
     });
 

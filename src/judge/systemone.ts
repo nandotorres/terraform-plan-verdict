@@ -60,6 +60,7 @@ export async function judgeWithSystemOne(
     defaultModel: opts.model,
     baseURL: opts.baseURL,
     fetch: opts.fetch,
+    defaultHeaders: opts.extra?.headers,
   });
 
   const { model, answers, usage } = await client.systemOne({ state: toState(summary), questions });

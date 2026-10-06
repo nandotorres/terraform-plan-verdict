@@ -55,9 +55,38 @@ describe("openai provider (fake transport, free)", () => {
 
     expect(j.provider).toBe("openai");
     expect(j.verdict).toBe("CRITICAL");
+    expect(j.dimensions.securityImpact.normalized).toBe(75);
     expect(j.dimensions.destructiveness.normalized).toBe(100);
     // 0.4*100 + 0.3*75 + 0.3*50 = 77.5 -> 78
     expect(j.overallScore).toBe(78);
     expect(j.dataLossRisk).toBeCloseTo(0.9);
+  });
+
+  it("applies provider-options (headers, query, body) to the request", async () => {
+    let captured: { url: string; init: RequestInit } | undefined;
+    const spyFetch = (async (url: string, init?: RequestInit) => {
+      captured = { url, init: init ?? {} };
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: '{"blast_radius":0,"destructiveness":0,"security_impact":0,"data_loss_risk":0,"verdict":"LOW"}' } }] }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as unknown as typeof fetch;
+
+    await judgePlan("openai", summary, {
+      apiKey: "test",
+      model: "x",
+      baseURL: "https://example.test/v1",
+      fetch: spyFetch,
+      extra: {
+        headers: { "anthropic-version": "2023-06-01" },
+        query: { "api-version": "2024-08-01" },
+        body: { max_tokens: 512 },
+      },
+    });
+
+    expect(captured?.url).toContain("api-version=2024-08-01");
+    const headers = captured?.init.headers as Record<string, string>;
+    expect(headers["anthropic-version"]).toBe("2023-06-01");
+    expect(JSON.parse(String(captured?.init.body))).toMatchObject({ max_tokens: 512 });
   });
 });

@@ -27,11 +27,22 @@ export interface Judgment {
   usage?: { inputTokens: number; outputTokens: number };
 }
 
+/** Provider-specific pass-through options (from the `provider-options` input). */
+export interface ProviderExtra {
+  /** Extra request headers (e.g. anthropic-version, Azure api-key). */
+  headers?: Record<string, string>;
+  /** Extra query-string params (e.g. Azure api-version). */
+  query?: Record<string, string>;
+  /** Extra request-body fields merged into the chat-completions call (e.g. max_tokens). */
+  body?: Record<string, unknown>;
+}
+
 export interface JudgeOptions {
   apiKey?: string;
   model: string;
   baseURL?: string;
   fetch?: typeof fetch;
+  extra?: ProviderExtra;
 }
 
 export const MAX_LEVEL = 4; // rubrics have 5 levels (0..4)

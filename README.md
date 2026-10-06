@@ -80,6 +80,29 @@ The `openai` provider works with any OpenAI-compatible endpoint — just set `ba
 
 Strict JSON mode is requested automatically and retried without it for endpoints that don't support it (e.g. Gemini, Anthropic), so responses parse across providers.
 
+### provider-options (headers / query / body)
+
+For anything a specific provider needs, pass a small YAML (or JSON) map. It supports three keys:
+`headers` (extra request headers), `query` (extra query-string params), and `body` (extra chat-completions
+fields). This covers the long tail — Azure OpenAI, `anthropic-version`, OpenRouter attribution, token limits, etc.
+
+```yaml
+# Azure OpenAI
+- uses: nandotorres/terraform-plan-verdict@v0
+  with:
+    plan-json: plan.json
+    provider: openai
+    base-url: https://my-resource.openai.azure.com/openai/deployments/gpt-4o
+    model: gpt-4o
+    provider-options: |
+      headers:
+        api-key: ${{ secrets.AZURE_OPENAI_KEY }}
+      query:
+        api-version: "2024-08-01-preview"
+      body:
+        max_tokens: 512
+```
+
 When using `systemone` or `openai`, only a **redacted plan summary** is sent — resource attribute *values are
 dropped*; only change actions, types, and a few security flags are included. The `rules` provider sends nothing.
 
@@ -182,6 +205,7 @@ jobs:
 | `api-key` | — | Key for the provider (not needed for `rules`). Falls back to `TYPESAFE_API_KEY` / `OPENAI_API_KEY`. |
 | `model` | provider default | Model name (e.g. `jev-latest`, `gpt-4o-mini`, `llama3.1`). |
 | `base-url` | provider default | API root for self-hosted/alternative endpoints. |
+| `provider-options` | — | YAML/JSON pass-through with `headers`, `query`, `body` maps (see below). |
 | `github-token` | `${{ github.token }}` | Token for comments and labels. |
 | `comment` | `true` | Post the verdict as a PR comment. |
 | `comment-mode` | `upsert` | `upsert` (one sticky comment) or `new`. |

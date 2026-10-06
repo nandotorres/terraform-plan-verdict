@@ -22,6 +22,9 @@ inputs:
   base-url:
     description: "API root for the provider. Enables self-hosted or alternative endpoints. Falls back to TYPESAFE_BASE_URL / OPENAI_BASE_URL."
     required: false
+  provider-options:
+    description: "Optional YAML/JSON pass-through for the provider: 'headers', 'query', and 'body' maps (e.g. Azure api-version, anthropic-version, max_tokens)."
+    required: false
   github-token:
     description: "Token used to post comments and apply labels."
     required: false
