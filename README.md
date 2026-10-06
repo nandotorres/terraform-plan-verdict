@@ -1,5 +1,10 @@
 # Terraform Plan Verdict
 
+[![CI](https://github.com/nandotorres/terraform-plan-verdict/actions/workflows/ci.yml/badge.svg)](https://github.com/nandotorres/terraform-plan-verdict/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/nandotorres/terraform-plan-verdict/actions/workflows/codeql.yml/badge.svg)](https://github.com/nandotorres/terraform-plan-verdict/actions/workflows/codeql.yml)
+[![Demo](https://github.com/nandotorres/terraform-plan-verdict/actions/workflows/demo.yml/badge.svg)](https://github.com/nandotorres/terraform-plan-verdict/actions/workflows/demo.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/nandotorres/terraform-plan-verdict/badge)](https://scorecard.dev/viewer/?uri=github.com/nandotorres/terraform-plan-verdict)
+
 Most teams "review" Terraform with a trivial check: *does the plan contain `destroy`? then ping someone.*
 This **extends that trivial check** into a graded, explained risk verdict — one that doesn't cry wolf over a
 harmless delete and doesn't wave through the dangerous changes a `destroy` grep never sees.
@@ -50,6 +55,20 @@ The judgment layer is pluggable. Pick what fits — the default needs **no API k
 
 When using `systemone` or `openai`, only a **redacted plan summary** is sent — resource attribute *values are
 dropped*; only change actions, types, and a few security flags are included. The `rules` provider sends nothing.
+
+## See it in action
+
+The [**Demo** workflow](https://github.com/nandotorres/terraform-plan-verdict/actions/workflows/demo.yml)
+runs four real, cloud-free Terraform plans and posts each verdict to the job summary:
+
+| Scenario | Verdict | Score |
+| --- | --- | --- |
+| low | 🟢 LOW | 17 |
+| medium | 🟡 MEDIUM | 32 |
+| high | 🟠 HIGH | 70 |
+| critical | 🔴 CRITICAL | 88 |
+
+See [`examples/`](examples/) for the scenarios.
 
 ## Quick start (free, no key)
 
