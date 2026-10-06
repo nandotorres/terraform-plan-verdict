@@ -25,17 +25,32 @@ fi
 plan="$(cd "$(dirname "$plan")" && pwd)/$(basename "$plan")"
 
 out="$(mktemp)"
-env "INPUT_PLAN-JSON=$plan" \
+log="$(mktemp)"
+if ! env "INPUT_PLAN-JSON=$plan" \
     "INPUT_PROVIDER=$provider" \
     ${MODEL:+"INPUT_MODEL=$MODEL"} \
     ${BASE_URL:+"INPUT_BASE-URL=$BASE_URL"} \
     ${API_KEY:+"INPUT_API-KEY=$API_KEY"} \
     INPUT_COMMENT=false INPUT_LABELS=false INPUT_SUMMARY=false "INPUT_FAIL-ON=none" \
     GITHUB_OUTPUT="$out" \
-    node "$here/dist/index.js"
+    node "$here/dist/index.js" >"$log" 2>&1; then
+  echo "scoring failed:" >&2
+  sed 's/^::error:://' "$log" >&2
+  rm -f "$out" "$log"
+  exit 1
+fi
 
-echo "----- verdict -----"
-grep -A1 '^verdict<<' "$out" | sed -n '2p' | sed 's/^/verdict: /'
-grep -A1 '^overall-score<<' "$out" | sed -n '2p' | sed 's/^/score:   /'
-grep -A1 '^scores-json<<' "$out" | sed -n '2p'
-rm -f "$out"
+# Pretty-print the result from the scores-json output.
+json="$(grep -A1 '^scores-json<<' "$out" | sed -n '2p')"
+python3 - "$json" <<'PY' 2>/dev/null || { echo "$json"; }
+import json, sys
+d = json.loads(sys.argv[1])
+badge = {"LOW":"\U0001F7E2","MEDIUM":"\U0001F7E1","HIGH":"\U0001F7E0","CRITICAL":"\U0001F534"}.get(d["verdict"], "")
+dims = d["dimensions"]
+print(f"{badge} {d['verdict']}  —  {d['overallScore']}/100   (provider: {d['provider']})")
+print(f"  destructiveness {dims['destructiveness']['normalized']:>3}   "
+      f"security {dims['securityImpact']['normalized']:>3}   "
+      f"blast {dims['blastRadius']['normalized']:>3}   "
+      f"data-loss {int(d['dataLossRisk']*100)}%")
+PY
+rm -f "$out" "$log"
