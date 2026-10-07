@@ -8,6 +8,14 @@ updates:
     groups:
       dev-dependencies:
         dependency-type: development
+    ignore:
+      # TypeScript 7 is the native (Go) compiler with no JS API; ncc's ts-loader
+      # needs it. Revisit once ncc supports TS 7.
+      - dependency-name: typescript
+        versions: [">=7"]
+      # Keep Node types aligned with the action's node24 runtime.
+      - dependency-name: "@types/node"
+        versions: [">=25"]
 
   # Keeps pinned action SHAs patched; Dependabot updates the SHA and the version comment.
   - package-ecosystem: github-actions
