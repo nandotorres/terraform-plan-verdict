@@ -22,7 +22,7 @@
   },
   "overrides": {
     "@fastify/busboy": "^3.2.2",
-    "undici": "^6.29.0"
+    "undici": "^6.29.1"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",
